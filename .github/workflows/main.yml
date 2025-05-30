@@ -61,7 +61,7 @@ jobs:
      uses: docker/scout-action@v1.0.9
      with:
        dockerhub-user: ${{ secrets.REPO_USER }}
-       dockerhub-password: ${{ secrets.REPO_PWD }}
+       dockerhub-password: ${{ secrets.REPO_PASS }}
        command: quickview,cves
        only-severities: critical,high
        sarif-file: scout-report.sarif
