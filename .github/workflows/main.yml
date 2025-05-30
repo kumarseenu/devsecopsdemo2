@@ -46,7 +46,6 @@ jobs:
 
    - name: Build and push Docker images
      uses: docker/setup-docker-action@v4.3.0
-     with:
 
    - name: Build Docker Image
      run: docker build -f Dockerfile -t myapp:latest .
