@@ -45,13 +45,11 @@ jobs:
    #   uses: docker-practice/actions-setup-docker@v1
 
    - name: Build and push Docker images
-     uses: docker/build-push-action@v6.18.0
+     uses: docker/setup-docker-action@v4.3.0
      with:
-       push: false
-       tags: myapp:latest
 
-   # - name: Build Docker Image
-   #   run: docker build -f Dockerfile -t myapp:latest .
+   - name: Build Docker Image
+     run: docker build -f Dockerfile -t myapp:latest .
 
    # - name: Docker Scout Scan
      # run: |
