@@ -27,7 +27,7 @@ jobs:
        cat bandit-report.json
 
    - name: Upload Artifact
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always() #to run this step even if the previous one fails
      with:
       name: bandit-findings
@@ -43,6 +43,7 @@ jobs:
 
    - name: Set up Docker
      uses: docker-practice/actions-setup-docker@v1
+     timeout-minutes: 12
      with:
       docker_version: '20.10.7'
 
@@ -67,7 +68,7 @@ jobs:
        sarif-file: scout-report.sarif
 
    - name: Upload Artifact
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: docker-scout-findings
