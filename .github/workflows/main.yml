@@ -1,6 +1,8 @@
 name: CI
 
-on: [push]
+on: 
+ - push
+ - workflow_dispatch
 
 jobs:
  sast_scan:
@@ -20,11 +22,13 @@ jobs:
      run: pip install bandit
 
    - name: Run Bandit Scan
-     run: bandit -ll -ii -r . -f json -o bandit-report.json
+     run: |
+       bandit -ll -ii -r . -f json -o bandit-report.json
+       cat bandit-report.json
 
    - name: Upload Artifact
-     uses: actions/upload-artifact@v3
-     if: always()
+     uses: actions/upload-artifact@v4
+     if: always() #to run this step even if the previous one fails
      with:
       name: bandit-findings
       path: bandit-report.json
@@ -36,11 +40,12 @@ jobs:
    steps:
    - name: Checkout code
      uses: actions/checkout@v2
+   
+   # - name: setup-docker
+   #   uses: docker-practice/actions-setup-docker@v1
 
-   - name: Set up Docker
-     uses: docker-practice/actions-setup-docker@v1
-     with:
-      docker_version: '20.10.7'
+   - name: Build and push Docker images
+     uses: docker/setup-docker-action@v4.3.0
 
    - name: Build Docker Image
      run: docker build -f Dockerfile -t myapp:latest .
@@ -57,13 +62,13 @@ jobs:
      uses: docker/scout-action@v1.0.9
      with:
        dockerhub-user: ${{ secrets.REPO_USER }}
-       dockerhub-password: ${{ secrets.REPO_PWD }}
+       dockerhub-password: ${{ secrets.REPO_PASS }}
        command: quickview,cves
        only-severities: critical,high
        sarif-file: scout-report.sarif
 
    - name: Upload Artifact
-     uses: actions/upload-artifact@v3
+     uses: actions/upload-artifact@v4
      if: always()
      with:
        name: docker-scout-findings
