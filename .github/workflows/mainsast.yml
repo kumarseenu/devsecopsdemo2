@@ -48,6 +48,12 @@ jobs:
       - name: Build Docker Image
         run: docker build -f Dockerfile -t myapp:latest .
 
+      - name: Create default daemon.json if missing
+        run: |
+          if [ ! -f /etc/docker/daemon.json ]; then
+            echo '{}' | sudo tee /etc/docker/daemon.json
+          fi
+
       - name: Show default daemon json content
         run: |
           if [ -f /etc/docker/daemon.json ]; then
