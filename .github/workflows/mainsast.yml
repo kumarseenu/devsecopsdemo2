@@ -55,6 +55,7 @@ jobs:
           else
             echo "/etc/docker/daemon.json does not exist."
           fi
+        continue-on-error: true
 
       - name: Docker Scout Scan
         run: |
