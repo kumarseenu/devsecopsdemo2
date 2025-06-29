@@ -49,11 +49,12 @@ jobs:
       - name: Create default daemon.json if missing
         run: |
           if [ ! -f /etc/docker/daemon.json ]; then
-            echo '{}' | sudo tee /etc/docker/daemon.json
+            echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
+            sudo chmod 644 /etc/docker/daemon.json
           fi
 
       - name: Show default daemon json content
-        run: |
+        run:  |
           if [ -f /etc/docker/daemon.json ]; then
             sudo cat /etc/docker/daemon.json
           else
