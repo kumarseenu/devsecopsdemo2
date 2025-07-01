@@ -53,14 +53,14 @@ jobs:
             sudo chmod 644 /etc/docker/daemon.json
           fi
 
-      - name: Show default daemon json content
-        run:  |
-          if [ -f /etc/docker/daemon.json ]; then
-            sudo cat /etc/docker/daemon.json
-          else
-            echo "/etc/docker/daemon.json does not exist."
-          fi
-        continue-on-error: true
+     # - name: Show default daemon json content
+     #   run:  |
+     #     if [ -f /etc/docker/daemon.json ]; then
+     #       sudo cat /etc/docker/daemon.json
+     #     else
+     #       echo "/etc/docker/daemon.json does not exist."
+     #     fi
+     #   continue-on-error: true
 
       - name: Docker Scout Scan
         run: |
