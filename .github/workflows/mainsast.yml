@@ -75,7 +75,7 @@ jobs:
           dockerhub-password: ${{ secrets.DCKR_PWD }}
           command: quickview,cves
         
-        # run: |
+        # run: | 
         #  curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
         #  sh install-scout.sh
         #  echo ${{ secrets.DCKR_PWD }} | docker login -u ${{ secrets.DCKR_USR }} --password-stdin
