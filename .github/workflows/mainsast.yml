@@ -72,7 +72,7 @@ jobs:
         uses: docker/scout-action@v1.18.1
         with:
           dockerhub-user: ${{ secrets.DCKR_USR }}
-          dockerhub-password: ${{ secrets.DCKR_PWD }}
+          dockerhub-password: ${{ secrets.DCKR_PSSWD }}
           command: quickview,cves
         
         # run: | 
