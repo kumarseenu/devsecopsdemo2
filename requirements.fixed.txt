@@ -1,0 +1,71 @@
+# ============================================================
+# requirements.fixed.txt – patched dependency versions
+# Run: pip-audit -r requirements.fixed.txt to verify 0 CVEs
+#
+# CVEs addressed vs requirements.txt:
+#   Django         4.1.7   → 4.2.16   CVE-2024-27351, CVE-2023-41164, CVE-2023-36053
+#   cryptography   39.0.1  → 43.0.1   CVE-2024-26130, CVE-2023-49083, many others
+#   Pillow         9.4.0   → 10.4.0   CVE-2023-50447, CVE-2023-44271
+#   urllib3        1.26.9  → 2.2.3    CVE-2023-45803, CVE-2023-43804
+#   requests       2.28.2  → 2.32.3   CVE-2024-35195, CVE-2023-32681
+#   PyJWT          2.4.0   → 2.9.0    CVE-2022-29217
+#   PyYAML         5.1     → 6.0.2    CVE-2020-14343, CVE-2020-1747
+#   Werkzeug       2.1.2   → 3.0.4    CVE-2023-25577, CVE-2023-23934
+#   certifi        2022.12.7 → 2024.7.4  CVE-2023-37920
+#   sqlparse       0.3.1   → 0.5.1    CVE-2023-30608
+#   zipp           3.8.0   → 3.19.2   CVE-2024-5569
+#   idna           3.4     → 3.7      CVE-2024-3651
+#   argon2-cffi    21.3.0  → 23.1.0   hardening update
+#   cffi           1.15.1  → 1.17.0   hardening update
+#   psycopg2       2.9.3   → 2.9.9    bug/security fixes
+# ============================================================
+
+# Core Django
+Django==4.2.16
+asgiref==3.8.1
+
+# Authentication
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0
+django-allauth==0.54.0
+django-crispy-forms==2.0
+crispy_bootstrap4
+
+# Database
+dj-database-url==2.2.0
+psycopg2==2.9.9
+
+# Cryptography / Security
+cryptography==43.0.1
+cffi==1.17.0
+PyJWT==2.9.0
+oauthlib==3.2.2
+python3-openid==3.2.0
+requests-oauthlib==1.3.1
+
+# HTTP
+certifi==2024.7.4
+charset-normalizer==3.3.2
+idna==3.7
+requests==2.32.3
+urllib3==2.2.3
+
+# Image processing
+Pillow==10.4.0
+
+# YAML (intentionally keeping for app compat, patched version)
+PyYAML==6.0.2
+
+# Utilities
+mccabe==0.7.0
+pycodestyle==2.11.1
+pyflakes==3.2.0
+pycparser==2.22
+pytz==2024.1
+sqlparse==0.5.1
+Werkzeug==3.0.4
+whitenoise==6.7.0
+zipp==3.19.2
+
+# Heroku / deployment (kept for settings.py compat)
+django-heroku==0.3.1

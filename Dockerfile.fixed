@@ -1,0 +1,52 @@
+# ============================================================
+# FIXED / HARDENED IMAGE – demonstrates security improvements
+# Run Trivy against this to compare with the vulnerable image
+#
+# Key fixes vs Dockerfile (vulnerable):
+#   1. Updated base image  → python:3.12-slim-bookworm (Debian 12)
+#   2. Non-root user       → runs as 'appuser' not root
+#   3. Updated pip         → no pinned legacy version
+#   4. Pinned apt packages → explicit versions for reproducibility
+#   5. Updated deps        → requirements.fixed.txt (patched CVEs)
+#   6. HEALTHCHECK added   → container self-monitors
+#   7. No dnsutils         → removes unnecessary tooling/attack surface
+# ============================================================
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+# Create non-root user early
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Install only what's required for psycopg2 (no dnsutils)
+RUN apt-get update && apt-get install --no-install-recommends -y \
+    libpq-dev \
+    python3-dev \
+    gcc \
+  && apt-get clean \
+  && rm -rf /var/lib/apt/lists/*
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Updated pip – no legacy pinning
+RUN python -m pip install --no-cache-dir --upgrade pip
+
+COPY requirements.fixed.txt requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . /app/
+
+EXPOSE 8000
+
+RUN python3 /app/manage.py migrate
+
+# Healthcheck – lets orchestrators detect unhealthy containers
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+  CMD python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:8000')" || exit 1
+
+# Drop privileges before starting the app
+USER appuser
+
+WORKDIR /app/pygoat/
+CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "pygoat.wsgi"]

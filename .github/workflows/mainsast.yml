@@ -1,10 +1,21 @@
-name: Main
+name: DevSecOps Pipeline – Vulnerable Image Demo
 
-on: [push]
+on:
+  push:
+  pull_request:
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Tools used (all free, no account required):
+#   1. Bandit   – SAST: static analysis of Python source code
+#   2. pip-audit – SCA:  CVE scan of Python package dependencies
+#   3. Trivy    – Container image scan: OS + library CVEs
+# ─────────────────────────────────────────────────────────────────────────────
 
 jobs:
-  sast_scan:
-    name: SAST Bandit Scan
+
+  # ── 1. SAST ─────────────────────────────────────────────────────────────────
+  sast_bandit:
+    name: "SAST – Bandit (Python source)"
     runs-on: ubuntu-latest
 
     steps:
@@ -12,82 +23,196 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v4
+        uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
+          python-version: "3.10"
 
       - name: Install Bandit
-        run: |
-          python -m pip install --upgrade pip
-          pip install bandit
+        run: pip install bandit[toml]
 
-      - name: Run Bandit Scan
+      - name: Run Bandit scan
+        # -ll = medium+ severity, -ii = medium+ confidence, -r = recursive
+        # || true so the step doesn't fail the pipeline (exit-code demo only)
         run: |
-          bandit -ll -ii -r . -f json -o bandit-report.json
+          bandit -ll -ii -r . \
+            --exclude ./.git,./venv,./.venv \
+            -f json -o bandit-report.json || true
 
-      - name: Upload Artifact
+      - name: Print Bandit summary
+        run: |
+          echo "=== Bandit findings (HIGH severity) ==="
+          python3 - <<'EOF'
+          import json, sys
+          with open("bandit-report.json") as f:
+              data = json.load(f)
+          results = data.get("results", [])
+          high = [r for r in results if r["issue_severity"] == "HIGH"]
+          print(f"Total issues : {len(results)}")
+          print(f"HIGH severity: {len(high)}")
+          for r in high[:10]:
+              print(f"  [{r['issue_severity']}] {r['issue_text']}  →  {r['filename']}:{r['line_number']}")
+          EOF
+
+      - name: Upload Bandit report
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: bandit-findings
           path: bandit-report.json
 
-  image_scan:
-    name: Build Image and Run Image Scan
+  # ── 2. SCA ──────────────────────────────────────────────────────────────────
+  sca_pip_audit:
+    name: "SCA – pip-audit (dependency CVEs)"
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Build Docker Image
-        run: docker build -f Dockerfile -t myapp:latest .
-
-      - name: Create default daemon.json if missing
-        run: |
-          if [ ! -f /etc/docker/daemon.json ]; then
-            echo '{}' | sudo tee /etc/docker/daemon.json > /dev/null
-            sudo chmod 644 /etc/docker/daemon.json
-          fi
-
-      # - name: Show default daemon json content
-      #   run: |
-      #     if [ -f /etc/docker/daemon.json ]; then
-      #       sudo cat /etc/docker/daemon.json
-      #     else
-      #       echo "/etc/docker/daemon.json does not exist."
-      #     fi
-      #   continue-on-error: true
-
-
-      # - name: Docker Scout Scan 
-        # run: |
-        #  curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
-        #  sh install-scout.sh
-        #  echo ${{ secrets.DCKR_PWD }} | docker login -u ${{ secrets.DCKR_USR }} --password-stdin
-        #  docker scout quickview
-        #  docker scout cves
-
-      - name: Docker Scout Scan 
-        uses: docker/scout-action@v1.18.1
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
-          dockerhub-user: ${{ secrets.DCKR_USR }}
-          dockerhub-password: ${{ secrets.DCKR_PSSWD }}
-          command: quickview,cves
-          only-severities: critical,high
-          sarif-file: scout-report.sarif
-      
-      - name: Upload Artifact
+          python-version: "3.10"
+
+      - name: Install pip-audit
+        run: pip install pip-audit
+
+      - name: Run pip-audit on requirements.txt
+        # Scans every pinned package against OSV / PyPI Advisory DB
+        run: |
+          pip-audit \
+            -r requirements.txt \
+            --format json \
+            --output pip-audit-report.json \
+            --progress-spinner off || true
+
+      - name: Print pip-audit summary
+        run: |
+          echo "=== pip-audit CVE findings ==="
+          python3 - <<'EOF'
+          import json
+          with open("pip-audit-report.json") as f:
+              data = json.load(f)
+          vulns = data.get("dependencies", [])
+          total = sum(len(d.get("vulns", [])) for d in vulns)
+          print(f"Packages scanned : {len(vulns)}")
+          print(f"CVEs found       : {total}")
+          for dep in vulns:
+              for v in dep.get("vulns", []):
+                  print(f"  {dep['name']}=={dep['version']}  {v['id']}  {v['description'][:80]}")
+          EOF
+
+      - name: Upload pip-audit report
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: dcoker-scout-findings
-          path: scout-report.sarif    
-        
-        # run: | 
-        #  curl -fsSL https://raw.githubusercontent.com/docker/scout-cli/main/install.sh -o install-scout.sh
-        #  sh install-scout.sh
-        #  echo ${{ secrets.DCKR_PWD }} | docker login -u ${{ secrets.DCKR_USR }} --password-stdin
-        #  docker scout quickview
-        #  docker scout cves
+          name: pip-audit-findings
+          path: pip-audit-report.json
 
+  # ── 3. Container image scan ──────────────────────────────────────────────────
+  container_scan_trivy:
+    name: "Container Scan – Trivy (OS + library CVEs)"
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Build the VULNERABLE image (python:3.9-bullseye + old packages)
+      - name: Build Docker image (vulnerable)
+        run: docker build -f Dockerfile -t pygoat-vulnerable:latest .
+
+      # ── Trivy table report (human-readable in CI logs) ──────────────────────
+      - name: Trivy scan – table output (CRITICAL + HIGH)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: "pygoat-vulnerable:latest"
+          format: "table"
+          severity: "CRITICAL,HIGH"
+          vuln-type: "os,library"
+          ignore-unfixed: false
+          exit-code: "0"
+
+      # ── Trivy SARIF report (uploads to GitHub Security tab) ─────────────────
+      - name: Trivy scan – SARIF output
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: "pygoat-vulnerable:latest"
+          format: "sarif"
+          output: "trivy-vulnerable.sarif"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          vuln-type: "os,library"
+          ignore-unfixed: false
+          exit-code: "0"
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-vulnerable.sarif"
+          category: "trivy-vulnerable"
+
+      - name: Upload Trivy SARIF artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-vulnerable-findings
+          path: trivy-vulnerable.sarif
+
+      # ── Build & scan FIXED image (for comparison) ───────────────────────────
+      - name: Build Docker image (fixed)
+        run: docker build -f Dockerfile.fixed -t pygoat-fixed:latest .
+
+      - name: Trivy scan – fixed image (SARIF)
+        uses: aquasecurity/trivy-action@0.20.0
+        with:
+          image-ref: "pygoat-fixed:latest"
+          format: "sarif"
+          output: "trivy-fixed.sarif"
+          severity: "CRITICAL,HIGH,MEDIUM"
+          vuln-type: "os,library"
+          ignore-unfixed: false
+          exit-code: "0"
+
+      - name: Upload SARIF to GitHub Security tab (fixed)
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: "trivy-fixed.sarif"
+          category: "trivy-fixed"
+
+      - name: Upload Trivy fixed SARIF artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-fixed-findings
+          path: trivy-fixed.sarif
+
+      # ── Comparison summary ───────────────────────────────────────────────────
+      - name: Print CVE comparison summary
+        run: |
+          echo "============================================"
+          echo "  CVE COMPARISON: Vulnerable vs Fixed"
+          echo "============================================"
+          python3 - <<'EOF'
+          import json
+
+          def count_sarif(path):
+              try:
+                  with open(path) as f:
+                      data = json.load(f)
+                  runs = data.get("runs", [])
+                  total = sum(len(r.get("results", [])) for r in runs)
+                  return total
+              except Exception as e:
+                  return f"error: {e}"
+
+          vuln_count = count_sarif("trivy-vulnerable.sarif")
+          fixed_count = count_sarif("trivy-fixed.sarif")
+          print(f"  Vulnerable image CVEs : {vuln_count}")
+          print(f"  Fixed image CVEs      : {fixed_count}")
+          if isinstance(vuln_count, int) and isinstance(fixed_count, int):
+              diff = vuln_count - fixed_count
+              print(f"  Reduction             : {diff} CVEs eliminated")
+          print("============================================")
+          EOF
