@@ -11,6 +11,12 @@ on:
 #   3. Trivy    – Container image scan: OS + library CVEs
 # ─────────────────────────────────────────────────────────────────────────────
 
+# Required for github/codeql-action/upload-sarif to post to Security tab
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+
 jobs:
 
   # ── 1. SAST ─────────────────────────────────────────────────────────────────
@@ -50,7 +56,7 @@ jobs:
           print(f"Total issues : {len(results)}")
           print(f"HIGH severity: {len(high)}")
           for r in high[:10]:
-              print(f"  [{r['issue_severity']}] {r['issue_text']}  →  {r['filename']}:{r['line_number']}")
+              print(f"  [{r['issue_severity']}] {r['issue_text']}  ->  {r['filename']}:{r['line_number']}")
           EOF
 
       - name: Upload Bandit report
@@ -118,11 +124,10 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      # Build the VULNERABLE image (python:3.9-bullseye + old packages)
+      # ── VULNERABLE image ─────────────────────────────────────────────────────
       - name: Build Docker image (vulnerable)
         run: docker build -f Dockerfile -t pygoat-vulnerable:latest .
 
-      # ── Trivy table report (human-readable in CI logs) ──────────────────────
       - name: Trivy scan – table output (CRITICAL + HIGH)
         uses: aquasecurity/trivy-action@0.20.0
         with:
@@ -133,8 +138,7 @@ jobs:
           ignore-unfixed: false
           exit-code: "0"
 
-      # ── Trivy SARIF report (uploads to GitHub Security tab) ─────────────────
-      - name: Trivy scan – SARIF output
+      - name: Trivy scan – SARIF output (vulnerable)
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: "pygoat-vulnerable:latest"
@@ -145,25 +149,27 @@ jobs:
           ignore-unfixed: false
           exit-code: "0"
 
-      - name: Upload SARIF to GitHub Security tab
+      - name: Upload SARIF to GitHub Security tab (vulnerable)
         uses: github/codeql-action/upload-sarif@v3
         if: always()
         with:
           sarif_file: "trivy-vulnerable.sarif"
           category: "trivy-vulnerable"
 
-      - name: Upload Trivy SARIF artifact
+      - name: Upload Trivy vulnerable artifact
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: trivy-vulnerable-findings
           path: trivy-vulnerable.sarif
 
-      # ── Build & scan FIXED image (for comparison) ───────────────────────────
+      # ── FIXED image ──────────────────────────────────────────────────────────
       - name: Build Docker image (fixed)
+        id: build_fixed
         run: docker build -f Dockerfile.fixed -t pygoat-fixed:latest .
 
-      - name: Trivy scan – fixed image (SARIF)
+      - name: Trivy scan – SARIF output (fixed)
+        if: steps.build_fixed.outcome == 'success'
         uses: aquasecurity/trivy-action@0.20.0
         with:
           image-ref: "pygoat-fixed:latest"
@@ -175,35 +181,37 @@ jobs:
           exit-code: "0"
 
       - name: Upload SARIF to GitHub Security tab (fixed)
+        if: steps.build_fixed.outcome == 'success'
         uses: github/codeql-action/upload-sarif@v3
-        if: always()
         with:
           sarif_file: "trivy-fixed.sarif"
           category: "trivy-fixed"
 
-      - name: Upload Trivy fixed SARIF artifact
+      - name: Upload Trivy fixed artifact
+        if: steps.build_fixed.outcome == 'success'
         uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: trivy-fixed-findings
           path: trivy-fixed.sarif
 
       # ── Comparison summary ───────────────────────────────────────────────────
       - name: Print CVE comparison summary
+        if: always()
         run: |
           echo "============================================"
           echo "  CVE COMPARISON: Vulnerable vs Fixed"
           echo "============================================"
           python3 - <<'EOF'
-          import json
+          import json, os
 
           def count_sarif(path):
+              if not os.path.exists(path):
+                  return "not built"
               try:
                   with open(path) as f:
                       data = json.load(f)
                   runs = data.get("runs", [])
-                  total = sum(len(r.get("results", [])) for r in runs)
-                  return total
+                  return sum(len(r.get("results", [])) for r in runs)
               except Exception as e:
                   return f"error: {e}"
 
