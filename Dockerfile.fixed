@@ -18,9 +18,11 @@ WORKDIR /app
 # Create non-root user early
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Install only what's required for psycopg2 (no dnsutils)
+# Install only what's required (no dnsutils)
+# libffi-dev needed by cffi/cryptography if building from source
 RUN apt-get update && apt-get install --no-install-recommends -y \
     libpq-dev \
+    libffi-dev \
     python3-dev \
     gcc \
   && apt-get clean \
